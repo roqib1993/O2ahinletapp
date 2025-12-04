@@ -166,24 +166,24 @@ export default function App() {
       <Toaster position="top-right" richColors />
       <div className="container mx-auto px-4 py-8 max-w-7xl overflow-x-hidden">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-3 rounded-lg">
-              <ClipboardList className="w-8 h-8 text-white" />
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="bg-indigo-600 p-2 sm:p-3 rounded-lg">
+              <ClipboardList className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-indigo-900">Calibration Work Activity Documentation</h1>
-              <p className="text-gray-600">Record and track O2 calibration processes</p>
+              <h1 className="text-indigo-900 text-lg sm:text-2xl">Calibration Work Activity Documentation</h1>
+              <p className="text-gray-600 text-xs sm:text-base">Record and track O2 calibration processes</p>
             </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-lg shadow-md mb-6">
+        <div className="bg-white rounded-lg shadow-md mb-4 sm:mb-6">
           <div className="flex border-b">
             <button
               onClick={() => setActiveTab('form')}
-              className={`flex-1 px-6 py-4 transition-colors ${
+              className={`flex-1 px-3 sm:px-6 py-3 sm:py-4 transition-colors text-sm sm:text-base ${
                 activeTab === 'form'
                   ? 'bg-indigo-600 text-white'
                   : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -193,7 +193,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('sessions')}
-              className={`flex-1 px-6 py-4 transition-colors relative ${
+              className={`flex-1 px-3 sm:px-6 py-3 sm:py-4 transition-colors relative text-sm sm:text-base ${
                 activeTab === 'sessions'
                   ? 'bg-indigo-600 text-white'
                   : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -203,7 +203,7 @@ export default function App() {
             </button>
           </div>
 
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {loading ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mb-4" />

@@ -3,7 +3,8 @@ import { Trash2, FileText, Download, Filter, FileDown, ChevronDown, ChevronUp, E
 import { useState } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { toast } from 'sonner';
+import { toast } from 'sonner@2.0.3';
+import logo from 'figma:asset/bbe538ebbc683fd4468cd8b0dad80b71648785ad.png';
 
 interface SessionsListProps {
   sessions: CalibrationSession[];
@@ -24,7 +25,6 @@ const plantItems = [
 
 export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) {
   const [filterPlantItem, setFilterPlantItem] = useState('');
-  const [filterTechnician, setFilterTechnician] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
@@ -40,36 +40,24 @@ export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) 
     });
   };
 
-  // Get unique technicians for filters
-  const uniqueTechnicians = Array.from(
-    new Set(
-      sessions.flatMap(s => [s.technician1, s.technician2, s.technician3])
-    )
-  ).filter(Boolean).sort();
+  // Filter sessions based on filters and sort by date (newest first)
+  const filteredSessions = sessions
+    .filter((session) => {
+      // Plant item filter - check if any plant item in the session matches
+      const matchesPlantItem = filterPlantItem === '' || 
+        session.plantItems.some(item => item.plantItem === filterPlantItem);
 
-  // Filter sessions based on filters
-  const filteredSessions = sessions.filter((session) => {
-    // Plant item filter - check if any plant item in the session matches
-    const matchesPlantItem = filterPlantItem === '' || 
-      session.plantItems.some(item => item.plantItem === filterPlantItem);
+      // Date range filter
+      const sessionDate = new Date(session.timestamp);
+      const matchesStartDate = startDate === '' || sessionDate >= new Date(startDate);
+      const matchesEndDate = endDate === '' || sessionDate <= new Date(endDate + 'T23:59:59');
 
-    // Technician filter
-    const matchesTechnician = filterTechnician === '' || 
-      session.technician1 === filterTechnician ||
-      session.technician2 === filterTechnician ||
-      session.technician3 === filterTechnician;
-
-    // Date range filter
-    const sessionDate = new Date(session.timestamp);
-    const matchesStartDate = startDate === '' || sessionDate >= new Date(startDate);
-    const matchesEndDate = endDate === '' || sessionDate <= new Date(endDate + 'T23:59:59');
-
-    return matchesPlantItem && matchesTechnician && matchesStartDate && matchesEndDate;
-  });
+      return matchesPlantItem && matchesStartDate && matchesEndDate;
+    })
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   const clearFilters = () => {
     setFilterPlantItem('');
-    setFilterTechnician('');
     setStartDate('');
     setEndDate('');
   };
@@ -96,7 +84,7 @@ export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) 
   };
 
   // Export single session to CSV
-  const exportSessionToCSV = (session: CalibrationSession, plantItemFilter?: string) => {
+  const exportSessionToCSV = (session: CalibrationSession) => {
     const headers = [
       'Timestamp',
       'Plant Item',
@@ -130,47 +118,40 @@ export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) 
 
     const csvRows: string[] = [headers.join(',')];
 
-    // Add channel readings row first (only if no plant item filter)
-    if (!plantItemFilter) {
-      csvRows.push([
-        formatDate(session.timestamp),
-        'CHANNEL AVERAGES',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        session.channelReadings.channelABefore.toFixed(2),
-        session.channelReadings.channelAAfter.toFixed(2),
-        session.channelReadings.channelBBefore.toFixed(2),
-        session.channelReadings.channelBAfter.toFixed(2),
-        session.channelReadings.channelCBefore.toFixed(2),
-        session.channelReadings.channelCAfter.toFixed(2),
-        session.calGasBottlePressureSpan,
-        session.calGasBottlePressureZero,
-        session.calGasRegulatorPressureSpan,
-        session.calGasRegulatorPressureZero,
-        session.technician1,
-        session.technician2,
-        session.technician3,
-        `"${session.remarks.replace(/"/g, '""')}"`,
-      ].join(','));
-    }
-
-    // Filter plant items if needed
-    const itemsToExport = plantItemFilter 
-      ? session.plantItems.filter(item => item.plantItem === plantItemFilter)
-      : session.plantItems;
+    // Add channel readings row first
+    csvRows.push([
+      formatDate(session.timestamp),
+      'CHANNEL AVERAGES',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      session.channelReadings.channelABefore.toFixed(2),
+      session.channelReadings.channelAAfter.toFixed(2),
+      session.channelReadings.channelBBefore.toFixed(2),
+      session.channelReadings.channelBAfter.toFixed(2),
+      session.channelReadings.channelCBefore.toFixed(2),
+      session.channelReadings.channelCAfter.toFixed(2),
+      session.calGasBottlePressureSpan,
+      session.calGasBottlePressureZero,
+      session.calGasRegulatorPressureSpan,
+      session.calGasRegulatorPressureZero,
+      session.technician1,
+      session.technician2,
+      session.technician3,
+      `"${session.remarks.replace(/"/g, '""')}"`,
+    ].join(','));
 
     // Add each plant item row
-    itemsToExport.forEach(item => {
+    session.plantItems.forEach(item => {
       csvRows.push([
         formatDate(session.timestamp),
         item.plantItem,
@@ -192,14 +173,10 @@ export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) 
         '',
         '',
         '',
-        plantItemFilter ? session.calGasBottlePressureSpan : '',
-        plantItemFilter ? session.calGasBottlePressureZero : '',
-        plantItemFilter ? session.calGasRegulatorPressureSpan : '',
-        plantItemFilter ? session.calGasRegulatorPressureZero : '',
-        plantItemFilter ? session.technician1 : '',
-        plantItemFilter ? session.technician2 : '',
-        plantItemFilter ? session.technician3 : '',
-        plantItemFilter ? `"${session.remarks.replace(/"/g, '""')}"` : '',
+        '',
+        '',
+        '',
+        '',
       ].join(','));
     });
 
@@ -208,9 +185,7 @@ export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) 
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    const filename = plantItemFilter 
-      ? `calibration_${plantItemFilter}_${session.id}.csv`
-      : `calibration_session_${session.id}.csv`;
+    const filename = `calibration_session_${session.id}.csv`;
     link.setAttribute('download', filename);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
@@ -224,146 +199,192 @@ export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) 
   };
 
   // Export single session to PDF
-  const exportSessionToPDF = (session: CalibrationSession, plantItemFilter?: string) => {
-    const doc = new jsPDF('landscape', 'mm', 'a4');
+  const exportSessionToPDF = (session: CalibrationSession) => {
+    try {
+      const doc = new jsPDF('landscape', 'mm', 'a4');
+      
+      // Use the same forEach structure as bulk export, just with one session
+      const sessionsArray = [session];
+      
+      sessionsArray.forEach((session, sessionIndex) => {
+        if (sessionIndex > 0) {
+          doc.addPage();
+        }
 
-    // Add session header
-    doc.setFontSize(16);
-    doc.text('Calibration Work Activity Documentation', 14, 15);
-    
-    doc.setFontSize(10);
-    doc.text(`Session Date: ${formatDate(session.timestamp)}`, 14, 22);
-    if (plantItemFilter) {
-      doc.text(`Plant Item: ${plantItemFilter}`, 14, 27);
-      doc.text(`Technicians: ${[session.technician1, session.technician2, session.technician3].filter(Boolean).join(', ') || 'N/A'}`, 14, 32);
-      if (session.remarks) {
-        doc.text(`Remarks: ${session.remarks}`, 14, 37);
-      }
-    } else {
-      doc.text(`Technicians: ${[session.technician1, session.technician2, session.technician3].filter(Boolean).join(', ') || 'N/A'}`, 14, 27);
-      if (session.remarks) {
-        doc.text(`Remarks: ${session.remarks}`, 14, 32);
-      }
-    }
+        const pageWidth = doc.internal.pageSize.getWidth();
 
-    let startY = session.remarks ? (plantItemFilter ? 42 : 37) : (plantItemFilter ? 37 : 32);
+        // Add logo with error handling
+        try {
+          const img = new Image();
+          img.src = logo;
+          doc.addImage(img, 'PNG', 14, 8, 40, 15);
+        } catch (error) {
+          console.error('Error loading logo:', error);
+          // Continue without logo
+        }
+        
+        // Add title
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text('Unit 7 O2 AH Inlet Analyzers Weekly Preventive Maintenance', pageWidth / 2, 15, { align: 'center' });
+        
+        // Add session info
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Date: ${formatDate(session.timestamp)}`, 14, 28);
+        doc.text(`Technicians: ${[session.technician1, session.technician2, session.technician3].filter(Boolean).join(', ') || 'N/A'}`, 14, 33);
 
-    // Channel readings summary (only if no plant item filter)
-    if (!plantItemFilter) {
-      const channelData = [
-        ['Channel A (Before)', session.channelReadings.channelABefore.toFixed(2) + '%'],
-        ['Channel A (After)', session.channelReadings.channelAAfter.toFixed(2) + '%'],
-        ['Channel B (Before)', session.channelReadings.channelBBefore.toFixed(2) + '%'],
-        ['Channel B (After)', session.channelReadings.channelBAfter.toFixed(2) + '%'],
-        ['Channel C (Before)', session.channelReadings.channelCBefore.toFixed(2) + '%'],
-        ['Channel C (After)', session.channelReadings.channelCAfter.toFixed(2) + '%'],
-      ];
+        let startY = 38;
 
-      autoTable(doc, {
-        head: [['Average O2 Channel Readings', 'Value']],
-        body: channelData,
-        startY: startY,
-        theme: 'grid',
-        headStyles: {
-          fillColor: [34, 197, 94], // Green color
-          textColor: 255,
-          fontStyle: 'bold',
-        },
-        margin: { left: 14, right: 14 },
-        tableWidth: 80,
+        // Plant items table FIRST (blue header)
+        const plantColumns = [
+          { header: 'Plant Item', dataKey: 'plantItem' },
+          { header: 'O2 Before (%)', dataKey: 'o2Before' },
+          { header: 'O2 After (%)', dataKey: 'o2After' },
+          { header: 'O2 Span (%)', dataKey: 'o2Span' },
+          { header: 'O2 Zero (%)', dataKey: 'o2Zero' },
+          { header: 'Gas Ratio Span Before (%)', dataKey: 'gasSpanBefore' },
+          { header: 'Gas Ratio Span After (%)', dataKey: 'gasSpanAfter' },
+          { header: 'Gas Ratio Zero Before (%)', dataKey: 'gasZeroBefore' },
+          { header: 'Gas Ratio Zero After (%)', dataKey: 'gasZeroAfter' },
+          { header: 'Cell Temp (°C)', dataKey: 'cellTemp' },
+          { header: 'Cell Life (mo)', dataKey: 'cellLife' },
+          { header: 'Cell Volt (mV)', dataKey: 'cellVolt' },
+          { header: 'Cell Res (ohm)', dataKey: 'cellRes' },
+        ];
+
+        const plantTableData = session.plantItems.map(item => ({
+          plantItem: item.plantItem,
+          o2Before: item.o2BeforeCalibration || '-',
+          o2After: item.o2AfterCalibration || '-',
+          o2Span: item.calibrationO2Span || '-',
+          o2Zero: item.calibrationO2Zero || '-',
+          gasSpanBefore: item.gasRatioSpanBefore || '-',
+          gasSpanAfter: item.gasRatioSpanAfter || '-',
+          gasZeroBefore: item.gasRatioZeroBefore || '-',
+          gasZeroAfter: item.gasRatioZeroAfter || '-',
+          cellTemp: item.cellTemperature || '-',
+          cellLife: item.cellLifetime || '-',
+          cellVolt: item.cellVoltage || '-',
+          cellRes: item.cellResistance || '-',
+        }));
+
+        autoTable(doc, {
+          columns: plantColumns,
+          body: plantTableData,
+          startY: startY,
+          styles: { 
+            fontSize: 7,
+            cellPadding: 1.5,
+            halign: 'center',
+          },
+          headStyles: {
+            fillColor: [59, 130, 246], // Blue color
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 8,
+            halign: 'center',
+          },
+          alternateRowStyles: {
+            fillColor: [245, 247, 250],
+          },
+          margin: { left: 14, right: 14 },
+        });
+
+        // Update startY after plant items table
+        startY = (doc as any).lastAutoTable.finalY + 10;
+
+        // Channel readings and Cal Gas Pressure side by side BELOW plant items table
+        const channelData = [
+          ['Channel A (Before)', session.channelReadings.channelABefore.toFixed(2) + '%'],
+          ['Channel A (After)', session.channelReadings.channelAAfter.toFixed(2) + '%'],
+          ['Channel B (Before)', session.channelReadings.channelBBefore.toFixed(2) + '%'],
+          ['Channel B (After)', session.channelReadings.channelBAfter.toFixed(2) + '%'],
+          ['Channel C (Before)', session.channelReadings.channelCBefore.toFixed(2) + '%'],
+          ['Channel C (After)', session.channelReadings.channelCAfter.toFixed(2) + '%'],
+        ];
+
+        const gasData = [
+          ['Bottle Pressure Span', (session.calGasBottlePressureSpan || '-') + ' psi'],
+          ['Bottle Pressure Zero', (session.calGasBottlePressureZero || '-') + ' psi'],
+          ['Regulator Pressure Span', (session.calGasRegulatorPressureSpan || '-') + ' psi'],
+          ['Regulator Pressure Zero', (session.calGasRegulatorPressureZero || '-') + ' psi'],
+        ];
+
+        // Channel readings on the left
+        autoTable(doc, {
+          head: [['Average O2 Channel Readings', 'Value']],
+          body: channelData,
+          startY: startY,
+          theme: 'grid',
+          headStyles: {
+            fillColor: [34, 197, 94], // Green color
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 10,
+          },
+          styles: {
+            fontSize: 9,
+          },
+          margin: { left: 14 },
+          tableWidth: 90,
+        });
+
+        // Cal Gas Pressure on the right
+        autoTable(doc, {
+          head: [['Cal Gas Pressure Readings', 'Value']],
+          body: gasData,
+          startY: startY,
+          theme: 'grid',
+          headStyles: {
+            fillColor: [34, 197, 94], // Green color
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 10,
+          },
+          styles: {
+            fontSize: 9,
+          },
+          margin: { left: 110 },
+          tableWidth: 90,
+        });
+
+        // Add remarks if exists
+        if (session.remarks) {
+          const remarksY = (doc as any).lastAutoTable.finalY + 8;
+          doc.setFontSize(9);
+          doc.setFont(undefined, 'bold');
+          doc.text('Remarks:', 14, remarksY);
+          doc.setFont(undefined, 'normal');
+          const splitRemarks = doc.splitTextToSize(session.remarks, pageWidth - 28);
+          doc.text(splitRemarks, 14, remarksY + 5);
+        }
+
+        // Add page number
+        doc.setFontSize(8);
+        doc.text(
+          `Session ${sessionIndex + 1} of ${sessionsArray.length}`,
+          pageWidth / 2,
+          doc.internal.pageSize.getHeight() - 10,
+          { align: 'center' }
+        );
       });
 
-      startY = (doc as any).lastAutoTable.finalY + 5;
+      const filename = `calibration_session_${session.id}.pdf`;
+      
+      // Use the exact same save method as bulk export (which works on Android)
+      doc.save(filename);
+      
+      // Show success notification
+      toast.success('PDF exported successfully!', {
+        description: `File: ${filename}`
+      });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Failed to export PDF', {
+        description: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
     }
-
-    // Cal Gas Pressure readings
-    const gasData = [
-      ['Bottle Pressure Span', (session.calGasBottlePressureSpan || '-') + ' psi'],
-      ['Bottle Pressure Zero', (session.calGasBottlePressureZero || '-') + ' psi'],
-      ['Regulator Pressure Span', (session.calGasRegulatorPressureSpan || '-') + ' psi'],
-      ['Regulator Pressure Zero', (session.calGasRegulatorPressureZero || '-') + ' psi'],
-    ];
-
-    autoTable(doc, {
-      head: [['Cal Gas Pressure Readings', 'Value']],
-      body: gasData,
-      startY: startY,
-      theme: 'grid',
-      headStyles: {
-        fillColor: [34, 197, 94], // Green color
-        textColor: 255,
-        fontStyle: 'bold',
-      },
-      margin: { left: 14, right: 14 },
-      tableWidth: 80,
-    });
-
-    // Filter plant items if needed
-    const itemsToExport = plantItemFilter 
-      ? session.plantItems.filter(item => item.plantItem === plantItemFilter)
-      : session.plantItems;
-
-    // Plant items table
-    const plantColumns = [
-      { header: 'Plant Item', dataKey: 'plantItem' },
-      { header: 'O2 Before (%)', dataKey: 'o2Before' },
-      { header: 'O2 After (%)', dataKey: 'o2After' },
-      { header: 'O2 Span (%)', dataKey: 'o2Span' },
-      { header: 'O2 Zero (%)', dataKey: 'o2Zero' },
-      { header: 'Gas Span Before', dataKey: 'gasSpanBefore' },
-      { header: 'Gas Span After', dataKey: 'gasSpanAfter' },
-      { header: 'Gas Zero Before', dataKey: 'gasZeroBefore' },
-      { header: 'Gas Zero After', dataKey: 'gasZeroAfter' },
-      { header: 'Cell Temp (°C)', dataKey: 'cellTemp' },
-      { header: 'Cell Life (mo)', dataKey: 'cellLife' },
-      { header: 'Cell Volt (mV)', dataKey: 'cellVolt' },
-      { header: 'Cell Res (Ω)', dataKey: 'cellRes' },
-    ];
-
-    const plantTableData = itemsToExport.map(item => ({
-      plantItem: item.plantItem,
-      o2Before: item.o2BeforeCalibration || '-',
-      o2After: item.o2AfterCalibration || '-',
-      o2Span: item.calibrationO2Span || '-',
-      o2Zero: item.calibrationO2Zero || '-',
-      gasSpanBefore: item.gasRatioSpanBefore || '-',
-      gasSpanAfter: item.gasRatioSpanAfter || '-',
-      gasZeroBefore: item.gasRatioZeroBefore || '-',
-      gasZeroAfter: item.gasRatioZeroAfter || '-',
-      cellTemp: item.cellTemperature || '-',
-      cellLife: item.cellLifetime || '-',
-      cellVolt: item.cellVoltage || '-',
-      cellRes: item.cellResistance || '-',
-    }));
-
-    autoTable(doc, {
-      columns: plantColumns,
-      body: plantTableData,
-      startY: (doc as any).lastAutoTable.finalY + 10,
-      styles: { 
-        fontSize: 7,
-        cellPadding: 2,
-      },
-      headStyles: {
-        fillColor: [79, 70, 229], // Indigo color
-        textColor: 255,
-        fontStyle: 'bold',
-      },
-      alternateRowStyles: {
-        fillColor: [245, 247, 250],
-      },
-      margin: { top: 10, right: 10, bottom: 10, left: 10 },
-    });
-
-    const filename = plantItemFilter 
-      ? `calibration_${plantItemFilter}_${session.id}.pdf`
-      : `calibration_session_${session.id}.pdf`;
-    doc.save(filename);
-    
-    // Show success notification
-    toast.success('PDF exported successfully!', {
-      description: `File: ${filename}`
-    });
   };
 
   const exportToCSV = () => {
@@ -462,7 +483,6 @@ export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) 
           '',
           '',
           '',
-          '',
         ].join(','));
       });
     });
@@ -471,8 +491,9 @@ export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
+    const filename = `calibration_sessions_${Date.now()}.csv`;
     link.setAttribute('href', url);
-    link.setAttribute('download', `calibration_sessions_${Date.now()}.csv`);
+    link.setAttribute('download', filename);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -480,7 +501,7 @@ export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) 
     
     // Show success notification
     toast.success('CSV exported successfully!', {
-      description: `File: calibration_sessions_${Date.now()}.csv`
+      description: `${filteredSessions.length} session(s) exported`
     });
   };
 
@@ -494,78 +515,46 @@ export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) 
         doc.addPage();
       }
 
-      // Add session header
-      doc.setFontSize(16);
-      doc.text('Calibration Work Activity Documentation', 14, 15);
-      
-      doc.setFontSize(10);
-      doc.text(`Session Date: ${formatDate(session.timestamp)}`, 14, 22);
-      doc.text(`Technicians: ${[session.technician1, session.technician2, session.technician3].filter(Boolean).join(', ') || 'N/A'}`, 14, 27);
-      if (session.remarks) {
-        doc.text(`Remarks: ${session.remarks}`, 14, 32);
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      // Add logo with error handling
+      try {
+        const img = new Image();
+        img.src = logo;
+        doc.addImage(img, 'PNG', 14, 8, 40, 15);
+      } catch (error) {
+        console.error('Error loading logo:', error);
+        // Continue without logo
       }
+      
+      // Add title
+      doc.setFontSize(14);
+      doc.setFont(undefined, 'bold');
+      doc.text('Unit 7 O2 AH Inlet Analyzers Weekly Preventive Maintenance', pageWidth / 2, 15, { align: 'center' });
+      
+      // Add session info
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Date: ${formatDate(session.timestamp)}`, 14, 28);
+      doc.text(`Technicians: ${[session.technician1, session.technician2, session.technician3].filter(Boolean).join(', ') || 'N/A'}`, 14, 33);
 
-      // Channel readings summary
-      const channelData = [
-        ['Channel A (Before)', session.channelReadings.channelABefore.toFixed(2) + '%'],
-        ['Channel A (After)', session.channelReadings.channelAAfter.toFixed(2) + '%'],
-        ['Channel B (Before)', session.channelReadings.channelBBefore.toFixed(2) + '%'],
-        ['Channel B (After)', session.channelReadings.channelBAfter.toFixed(2) + '%'],
-        ['Channel C (Before)', session.channelReadings.channelCBefore.toFixed(2) + '%'],
-        ['Channel C (After)', session.channelReadings.channelCAfter.toFixed(2) + '%'],
-      ];
+      let startY = 38;
 
-      autoTable(doc, {
-        head: [['Average O2 Channel Readings', 'Value']],
-        body: channelData,
-        startY: session.remarks ? 37 : 32,
-        theme: 'grid',
-        headStyles: {
-          fillColor: [34, 197, 94], // Green color
-          textColor: 255,
-          fontStyle: 'bold',
-        },
-        margin: { left: 14, right: 14 },
-        tableWidth: 80,
-      });
-
-      // Cal Gas Pressure readings
-      const gasData = [
-        ['Bottle Pressure Span', (session.calGasBottlePressureSpan || '-') + ' psi'],
-        ['Bottle Pressure Zero', (session.calGasBottlePressureZero || '-') + ' psi'],
-        ['Regulator Pressure Span', (session.calGasRegulatorPressureSpan || '-') + ' psi'],
-        ['Regulator Pressure Zero', (session.calGasRegulatorPressureZero || '-') + ' psi'],
-      ];
-
-      autoTable(doc, {
-        head: [['Cal Gas Pressure Readings', 'Value']],
-        body: gasData,
-        startY: (doc as any).lastAutoTable.finalY + 5,
-        theme: 'grid',
-        headStyles: {
-          fillColor: [34, 197, 94], // Green color
-          textColor: 255,
-          fontStyle: 'bold',
-        },
-        margin: { left: 14, right: 14 },
-        tableWidth: 80,
-      });
-
-      // Plant items table
+      // Plant items table FIRST (blue header)
       const plantColumns = [
         { header: 'Plant Item', dataKey: 'plantItem' },
         { header: 'O2 Before (%)', dataKey: 'o2Before' },
         { header: 'O2 After (%)', dataKey: 'o2After' },
         { header: 'O2 Span (%)', dataKey: 'o2Span' },
         { header: 'O2 Zero (%)', dataKey: 'o2Zero' },
-        { header: 'Gas Span Before', dataKey: 'gasSpanBefore' },
-        { header: 'Gas Span After', dataKey: 'gasSpanAfter' },
-        { header: 'Gas Zero Before', dataKey: 'gasZeroBefore' },
-        { header: 'Gas Zero After', dataKey: 'gasZeroAfter' },
+        { header: 'Gas Ratio Span Before (%)', dataKey: 'gasSpanBefore' },
+        { header: 'Gas Ratio Span After (%)', dataKey: 'gasSpanAfter' },
+        { header: 'Gas Ratio Zero Before (%)', dataKey: 'gasZeroBefore' },
+        { header: 'Gas Ratio Zero After (%)', dataKey: 'gasZeroAfter' },
         { header: 'Cell Temp (°C)', dataKey: 'cellTemp' },
         { header: 'Cell Life (mo)', dataKey: 'cellLife' },
         { header: 'Cell Volt (mV)', dataKey: 'cellVolt' },
-        { header: 'Cell Res (Ω)', dataKey: 'cellRes' },
+        { header: 'Cell Res (ohm)', dataKey: 'cellRes' },
       ];
 
       const plantTableData = session.plantItems.map(item => ({
@@ -587,27 +576,99 @@ export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) 
       autoTable(doc, {
         columns: plantColumns,
         body: plantTableData,
-        startY: (doc as any).lastAutoTable.finalY + 10,
+        startY: startY,
         styles: { 
           fontSize: 7,
-          cellPadding: 2,
+          cellPadding: 1.5,
+          halign: 'center',
         },
         headStyles: {
-          fillColor: [79, 70, 229], // Indigo color
+          fillColor: [59, 130, 246], // Blue color
           textColor: 255,
           fontStyle: 'bold',
+          fontSize: 8,
+          halign: 'center',
         },
         alternateRowStyles: {
           fillColor: [245, 247, 250],
         },
-        margin: { top: 10, right: 10, bottom: 10, left: 10 },
+        margin: { left: 14, right: 14 },
       });
+
+      // Update startY after plant items table
+      startY = (doc as any).lastAutoTable.finalY + 10;
+
+      // Channel readings and Cal Gas Pressure side by side BELOW plant items table
+      const channelData = [
+        ['Channel A (Before)', session.channelReadings.channelABefore.toFixed(2) + '%'],
+        ['Channel A (After)', session.channelReadings.channelAAfter.toFixed(2) + '%'],
+        ['Channel B (Before)', session.channelReadings.channelBBefore.toFixed(2) + '%'],
+        ['Channel B (After)', session.channelReadings.channelBAfter.toFixed(2) + '%'],
+        ['Channel C (Before)', session.channelReadings.channelCBefore.toFixed(2) + '%'],
+        ['Channel C (After)', session.channelReadings.channelCAfter.toFixed(2) + '%'],
+      ];
+
+      const gasData = [
+        ['Bottle Pressure Span', (session.calGasBottlePressureSpan || '-') + ' psi'],
+        ['Bottle Pressure Zero', (session.calGasBottlePressureZero || '-') + ' psi'],
+        ['Regulator Pressure Span', (session.calGasRegulatorPressureSpan || '-') + ' psi'],
+        ['Regulator Pressure Zero', (session.calGasRegulatorPressureZero || '-') + ' psi'],
+      ];
+
+      // Channel readings on the left
+      autoTable(doc, {
+        head: [['Average O2 Channel Readings', 'Value']],
+        body: channelData,
+        startY: startY,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [34, 197, 94], // Green color
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 10,
+        },
+        styles: {
+          fontSize: 9,
+        },
+        margin: { left: 14 },
+        tableWidth: 90,
+      });
+
+      // Cal Gas Pressure on the right
+      autoTable(doc, {
+        head: [['Cal Gas Pressure Readings', 'Value']],
+        body: gasData,
+        startY: startY,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [34, 197, 94], // Green color
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 10,
+        },
+        styles: {
+          fontSize: 9,
+        },
+        margin: { left: 110 },
+        tableWidth: 90,
+      });
+
+      // Add remarks if exists
+      if (session.remarks) {
+        const remarksY = (doc as any).lastAutoTable.finalY + 8;
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'bold');
+        doc.text('Remarks:', 14, remarksY);
+        doc.setFont(undefined, 'normal');
+        const splitRemarks = doc.splitTextToSize(session.remarks, pageWidth - 28);
+        doc.text(splitRemarks, 14, remarksY + 5);
+      }
 
       // Add page number
       doc.setFontSize(8);
       doc.text(
         `Session ${sessionIndex + 1} of ${filteredSessions.length}`,
-        doc.internal.pageSize.getWidth() / 2,
+        pageWidth / 2,
         doc.internal.pageSize.getHeight() - 10,
         { align: 'center' }
       );
@@ -658,22 +719,6 @@ export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) 
           </div>
 
           <div>
-            <label className="block text-gray-700 mb-2">Technician</label>
-            <select
-              value={filterTechnician}
-              onChange={(e) => setFilterTechnician(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            >
-              <option value="">All Technicians</option>
-              {uniqueTechnicians.map((tech) => (
-                <option key={tech} value={tech}>
-                  {tech}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
             <label className="block text-gray-700 mb-2">Start Date</label>
             <input
               type="date"
@@ -695,7 +740,7 @@ export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) 
         </div>
 
         {/* Active Filters Summary and Clear Button */}
-        {(filterPlantItem || filterTechnician || startDate || endDate) && (
+        {(filterPlantItem || startDate || endDate) && (
           <div className="flex items-center justify-between pt-2 border-t border-gray-200">
             <p className="text-gray-600">
               Showing {filteredSessions.length} of {sessions.length} sessions
@@ -775,14 +820,14 @@ export function SessionsList({ sessions, onDelete, onEdit }: SessionsListProps) 
                         )}
                       </button>
                       <button
-                        onClick={() => exportSessionToPDF(session, filterPlantItem)}
+                        onClick={() => exportSessionToPDF(session)}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         title="Export to PDF"
                       >
                         <FileDown className="w-5 h-5" />
                       </button>
                       <button
-                        onClick={() => exportSessionToCSV(session, filterPlantItem)}
+                        onClick={() => exportSessionToCSV(session)}
                         className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                         title="Export to CSV"
                       >

@@ -52,7 +52,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [editingSession, setEditingSession] = useState<CalibrationSession | null>(null);
 
-  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-e669e2e2`;
+/*  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-e669e2e2`; */
+  const serverUrl = https://supabase.afezcloud.us/functions/v1/make-server-e669e2e2;
 
   // Load sessions from database on mount
   useEffect(() => {
